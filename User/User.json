@@ -1,0 +1,22 @@
+{
+  "api_key": "sk-ebacaed43bfa42a8a493fdb248a22375",
+  "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "models": [
+    {
+      "type": "general",
+      "model_name": "qwen-plus"
+    },
+    {
+      "type": "vision",
+      "model_name": "qwen-vl-plus"
+    },
+    {
+      "type": "code",
+      "model_name": "qwen-plus"
+    },
+    {
+      "type": "tts",
+      "model_name": "cosyvoice-v1"
+    }
+  ]
+}

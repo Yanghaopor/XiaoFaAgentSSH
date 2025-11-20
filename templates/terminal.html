@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSH Web Terminal</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h2 {
+            margin: 0;
+            font-size: 18px;
+        }
+        .header button {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        .header button:hover {
+            background-color: #c0392b;
+        }
+        .terminal-section {
+            padding: 20px;
+        }
+        .terminal {
+            background-color: #1e1e1e;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            padding: 15px;
+            height: 400px;
+            overflow-y: auto;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            border: 1px solid #333;
+        }
+        .input-section {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+        .input-section input {
+            flex: 1;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .input-section button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .input-section button:hover {
+            background-color: #2980b9;
+        }
+        .ai-section {
+            padding: 20px;
+            border-top: 1px solid #eee;
+            background-color: #f8f9fa;
+        }
+        .ai-output {
+            background-color: white;
+            border: 1px solid #ddd;
+            padding: 15px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: Arial, sans-serif;
+            white-space: pre-wrap;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        .ai-input {
+            display: flex;
+            gap: 10px;
+        }
+        .ai-input input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .ai-input button {
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .ai-input button:hover {
+            background-color: #229954;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            background-color: #e8f5e8;
+            color: #2d5a2d;
+        }
+        .help {
+            margin-top: 15px;
+            padding: 15px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .help ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .help li {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>SSH Terminal</h2>
+            <div>
+                <span class="status" id="connection-status">已连接</span>
+                <button onclick="clearTerminal()">清屏</button>
+                <button onclick="disconnectSSH()">断开连接</button>
+            </div>
+        </div>
+        
+        <div class="terminal-section">
+            <div id="terminal" class="terminal">SSH连接已建立，可以开始输入命令...\n\n</div>
+            
+            <div class="input-section">
+                <input type="text" id="commandInput" placeholder="输入SSH命令...">
+                <button onclick="executeCommand()">执行</button>
+            </div>
+        </div>
+        
+        <div class="ai-section">
+            <h3 style="margin-top: 0;">AI 智能助手</h3>
+            <div id="ai-output" class="ai-output">AI助手已就绪，您可以询问任何关于服务器管理的问题...</div>
+            
+            <div class="ai-input">
+                <input type="text" id="aiInput" placeholder="向AI助手提问...">
+                <button onclick="askAI()">提问</button>
+            </div>
+        </div>
+        
+        <div class="help">
+            <h4>使用说明:</h4>
+            <ul>
+                <li><strong>SSH命令:</strong> 在上方输入框中输入Linux命令，点击执行或按Enter键</li>
+                <li><strong>AI助手:</strong> 在下方输入框中向AI提问，AI会根据当前服务器状态给出建议</li>
+                <li><strong>快捷键:</strong> Ctrl+L 清屏</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const terminal = document.getElementById('terminal');
+        const commandInput = document.getElementById('commandInput');
+        const aiInput = document.getElementById('aiInput');
+        const aiOutput = document.getElementById('ai-output');
+        let sessionId = null;
+        
+        // 连接事件
+        socket.on('connected', function(data) {
+            sessionId = data.session_id;
+            console.log('已连接到服务器:', sessionId);
+        });
+        
+        // 监听命令输出
+        socket.on('command_output', function(data) {
+            terminal.innerHTML += data.output;
+            terminal.scrollTop = terminal.scrollHeight;
+        });
+        
+        // 监听下载进度
+        socket.on('download_progress', function(data) {
+            const progressMsg = `\n[下载进度] ${data.progress}%\n`;
+            terminal.innerHTML += progressMsg;
+            terminal.scrollTop = terminal.scrollHeight;
+        });
+        
+        // 监听下载完成
+        socket.on('download_complete', function(data) {
+            const completeMsg = `\n[系统] ${data.message}\n`;
+            terminal.innerHTML += completeMsg;
+            terminal.scrollTop = terminal.scrollHeight;
+        });
+        
+        // 监听下载监控状态
+        socket.on('download_monitoring', function(data) {
+            if (data.status === 'monitoring') {
+                // 可以在这里显示监控状态，但不要过于频繁
+            }
+        });
+        
+        // 监听命令错误
+        socket.on('command_error', function(data) {
+            terminal.innerHTML += '[错误] ' + data.error + '\n';
+            terminal.scrollTop = terminal.scrollHeight;
+        });
+        
+        // 监听系统消息
+        socket.on('system_message', function(data) {
+            terminal.innerHTML += '[系统] ' + data.message + '\n';
+            terminal.scrollTop = terminal.scrollHeight;
+        });
+        
+        // 监听AI响应
+        socket.on('ai_response', function(data) {
+            aiOutput.textContent += '[AI] ' + data.response + '\n';
+            aiOutput.scrollTop = aiOutput.scrollHeight;
+        });
+        
+        // 监听AI分析
+        socket.on('ai_analysis', function(data) {
+            aiOutput.textContent += '[分析] ' + data.analysis + '\n';
+            aiOutput.scrollTop = aiOutput.scrollHeight;
+        });
+        
+        // 监听AI错误
+        socket.on('ai_error', function(data) {
+            aiOutput.textContent += '[错误] ' + data.error + '\n';
+            aiOutput.scrollTop = aiOutput.scrollHeight;
+        });
+        
+        // 监听断开连接
+        socket.on('disconnected', function(data) {
+            terminal.innerHTML += '\n' + data.message + '\n';
+            document.getElementById('connection-status').textContent = '已断开';
+            document.getElementById('connection-status').style.backgroundColor = '#ffebee';
+            document.getElementById('connection-status').style.color = '#c62828';
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 2000);
+        });
+        
+        // 执行SSH命令
+        function executeCommand() {
+            const command = commandInput.value.trim();
+            if (command && sessionId) {
+                // 显示用户输入的命令
+                terminal.innerHTML += '$ ' + command + '\n';
+                
+                // 发送命令到服务器
+                socket.emit('execute_command', {
+                    command: command,
+                    session_id: sessionId
+                });
+                
+                // 清空输入框
+                commandInput.value = '';
+                
+                // 滚动到底部
+                terminal.scrollTop = terminal.scrollHeight;
+            }
+        }
+        
+        // 向AI提问
+        function askAI() {
+            const question = aiInput.value.trim();
+            if (question && sessionId) {
+                // 显示用户问题
+                aiOutput.textContent += '[用户] ' + question + '\n';
+                aiOutput.textContent += '[AI] 正在思考...\n';
+                aiOutput.scrollTop = aiOutput.scrollHeight;
+                
+                // 发送问题到AI
+                socket.emit('ai_question', {
+                    question: question,
+                    session_id: sessionId
+                });
+                
+                // 清空输入框
+                aiInput.value = '';
+            }
+        }
+        
+        // 断开SSH连接
+        function disconnectSSH() {
+            if (confirm('确定要断开SSH连接吗？')) {
+                socket.emit('disconnect_ssh');
+            }
+        }
+        
+        // 清屏
+        function clearTerminal() {
+            terminal.innerHTML = '';
+        }
+        
+        // 键盘事件处理
+        commandInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                executeCommand();
+            }
+        });
+        
+        aiInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                askAI();
+            }
+        });
+        
+        // 全局键盘快捷键
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+L 清屏
+            if (e.ctrlKey && e.key === 'l') {
+                e.preventDefault();
+                clearTerminal();
+            }
+        });
+        
+        // 页面加载完成后聚焦到命令输入框
+        window.onload = function() {
+            commandInput.focus();
+        };
+        
+        // 点击终端区域时聚焦到命令输入框
+        terminal.addEventListener('click', function() {
+            commandInput.focus();
+        });
+    </script>
+</body>
+</html>

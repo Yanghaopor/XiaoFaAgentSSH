@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSH Web Terminal - 登录</title>
+</head>
+<body>
+    <h1>SSH Web Terminal</h1>
+    
+    {% if error %}
+    <div style="color: red; margin: 10px 0;">
+        {{ error }}
+    </div>
+    {% endif %}
+    
+    <form method="POST" action="/connect">
+        <div>
+            <label for="host">主机地址:</label><br>
+            <input type="text" id="host" name="host" required placeholder="例: 192.168.1.100">
+        </div>
+        <br>
+        
+        <div>
+            <label for="port">端口:</label><br>
+            <input type="number" id="port" name="port" value="22" required>
+        </div>
+        <br>
+        
+        <div>
+            <label for="username">用户名:</label><br>
+            <input type="text" id="username" name="username" required placeholder="例: root">
+        </div>
+        <br>
+        
+        <div>
+            <label for="password">密码:</label><br>
+            <input type="password" id="password" name="password" required>
+        </div>
+        <br>
+        
+        <button type="submit">连接SSH</button>
+    </form>
+    
+    <div style="margin-top: 20px; padding: 10px; background-color: #f0f0f0;">
+        <h3>使用说明:</h3>
+        <ul>
+            <li>填写SSH服务器的连接信息</li>
+            <li>连接成功后将跳转到终端页面</li>
+            <li>在终端中可以执行Linux命令</li>
+            <li>输入 <code>/ai 你的问题</code> 可以向AI助手询问Linux相关问题</li>
+        </ul>
+    </div>
+</body>
+</html>
